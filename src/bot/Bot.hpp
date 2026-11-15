@@ -128,6 +128,7 @@ private:
         std::mutex mCommandMutex;
     std::optional<std::string> mQueuedCommand;
     int mQueuedDelayTicks = 0;
+        bool mProbePending = false;
 
     // Identity guard: drop all work when the world or dimension changes.
     const void *mLevel = nullptr;
