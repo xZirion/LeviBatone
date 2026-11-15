@@ -80,6 +80,12 @@ void Bot::log(std::string text) {
     if (mMessages.size() > 6) mMessages.erase(mMessages.begin());
 }
 
+void Bot::queueCommand(std::string line, bool immediate) {
+    constexpr int kDebounceTicks = 30;
+    std::lock_guard lock(mCommandMutex);
+    mQueuedCommand = std::move(line);
+    mQueuedDelayTicks = immediate ? 0 : kDebounceTicks;
+}
 std::vector<Bot::Message> Bot::messages() {
     std::lock_guard lock(mMessageMutex);
     return mMessages;
@@ -912,6 +918,22 @@ void Bot::onTick(sdk::Player *player) {
                         mMessages.end());
     }
 
+       {
+        std::optional<std::string> command;
+        {
+            std::lock_guard lock(mCommandMutex);
+            if (mQueuedCommand) {
+                if (mQueuedDelayTicks > 0) --mQueuedDelayTicks;
+                if (mQueuedDelayTicks <= 0) {
+                    command = std::move(mQueuedCommand);
+                    mQueuedCommand.reset();
+                }
+            }
+        }
+        if (command) {
+            for (auto &line : executeCommand(*command)) log(line);
+        }
+       } 
     if (mMode == Mode::Idle) {
         mExecutor.tick(player);
         return;
