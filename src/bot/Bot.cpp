@@ -81,7 +81,7 @@ void Bot::log(std::string text) {
 }
 
 void Bot::queueCommand(std::string line, bool immediate) {
-    constexpr int kDebounceTicks = 30;
+    constexpr int kDebounceTicks = 80;
     std::lock_guard lock(mCommandMutex);
     mQueuedCommand = std::move(line);
     mQueuedDelayTicks = immediate ? 0 : kDebounceTicks;
@@ -331,6 +331,10 @@ std::vector<std::string> Bot::executeCommand(const std::string &line) {
         return {"exploring — walks in widening directions"};
     }
 
+        if (command == "probe") {
+        mProbePending = true;
+        return {"probing blocks around you..."};
+        }
     if (command == "status") {
         feedback.push_back("mode: " + modeLabel());
         if (mGoal) {
@@ -934,7 +938,38 @@ void Bot::onTick(sdk::Player *player) {
             for (auto &line : executeCommand(*command)) log(line);
         }
        } 
+        if (mProbePending && player) {
+        mProbePending = false;
+        World &world = World::get();
+        if (!world.refresh(player->dimension() ? player->dimension()->blockSource() : nullptr)) {
+            log("probe: no block source");
+        } else {
+            static const char *kClass[] = {"air", "liquid", "passable", "climbable",
+                                           "solid", "unbreakable", "dangerous", "unknown"};
+            static const char *kLabel[] = {"below", "feet", "head", "+x", "-x"};
+            const BlockPos feet = feetBlock(player->position());
+            const BlockPos spots[] = {{feet.x, feet.y - 1, feet.z}, {feet.x, feet.y, feet.z},
+                                      {feet.x, feet.y + 1, feet.z}, {feet.x + 1, feet.y, feet.z},
+                                      {feet.x - 1, feet.y, feet.z}};
+            for (int i = 0; i < 5; ++i) {
+                const void *block = world.getBlock(spots[i]);
+                std::string text = std::string(kLabel[i]) + ": ";
+                if (!block) {
+                    text += "no block (chunk not loaded?)";
+                } else {
+                    const std::string *name = static_cast<const sdk::Block *>(block)->fullName();
+                    if (!name) text += "no name";
+                    else if (name->size() > 64) text += "bad name length " + std::to_string(name->size());
+                    else text += *name;
+                    text += " [" + std::string(kClass[static_cast<int>(world.classify(block))]) + "]";
+                }
+                log(text);
+            }
+        }
+    }
+
     if (mMode == Mode::Idle) {
+        if (player) mLastTickPosition = player->position();
         mExecutor.tick(player);
         return;
     }
