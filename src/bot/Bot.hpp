@@ -38,6 +38,8 @@ public:
 
     // Command surface. Returns feedback lines for the HUD.
     std::vector<std::string> executeCommand(const std::string &line);
+    // Thread-safe: called from the UI thread; the command runs in onTick (game thread).
+    void queueCommand(std::string line, bool immediate = false);
 
     void stop();
     void log(std::string text);
@@ -123,6 +125,9 @@ private:
 
     std::mutex mMessageMutex;
     std::vector<Message> mMessages;
+        std::mutex mCommandMutex;
+    std::optional<std::string> mQueuedCommand;
+    int mQueuedDelayTicks = 0;
 
     // Identity guard: drop all work when the world or dimension changes.
     const void *mLevel = nullptr;
