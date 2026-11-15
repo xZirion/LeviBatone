@@ -64,17 +64,15 @@ void onConfigChanged(std::string_view moduleId, std::string_view key, std::strin
     if (text.size() < 2 || text[0] != '!') return;
     if (text == gLastCommand) return;
     gLastCommand = text;
-    for (auto &line : Bot::get().executeCommand(text.substr(1))) {
-        Bot::get().log(line);
+Bot::get().queueCommand(text.substr(1)); 
     }
-}
 
 void onStopButton(std::string_view buttonId, pl::modmenu::ButtonEvent event, float value) {
     (void)buttonId;
     (void)value;
     if (event != pl::modmenu::ButtonEvent::Click) return;
     gLastCommand.clear();
-    Bot::get().stop();
+        Bot::get().queueCommand("stop", true);
 }
 
 } // namespace
